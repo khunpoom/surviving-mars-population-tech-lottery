@@ -14,7 +14,7 @@ HOW IT WORKS
 
 INSTALL
 Drop this folder into:
-  %AppData%\\Surviving Mars Relaunched\\Mods\\PopulationTechLottery
+  %AppData%\Surviving Mars Relaunched\Mods\PopulationTechLottery
 Enable it in the in-game Mod Manager, then restart the game.
 Options: Game Options → Mod Options → Population Tech Lottery
 
@@ -25,12 +25,12 @@ CREDITS
 Written by Grok (xAI). MIT License.]],
 	"short_description", "Every 20 colonists add +1% chance per Sol to instantly research a random already-unlocked tech.",
 	"image", "preview.jpg",
-	"last_changes", "Initial release: population-scaled tech lottery with Sol/Hour interval and locked-tech option.",
+	"last_changes", "1.0.1: fix debug-mode crash on undefined global (lottery never rolled); avoid T() text in console; roll on NewHour as well as NewDay.",
 	"id", "PopTechLottery",
 	"author", "Grok (xAI)",
 	"version_major", 1,
 	"version_minor", 0,
-	"version", 1,
+	"version", 2,
 	"lua_revision", 350453,
 	"saved_with_revision", 403908,
 	"optional_mod", true,
