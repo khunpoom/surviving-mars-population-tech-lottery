@@ -17,9 +17,10 @@ local DEFAULTS = {
 	LogToConsole = true,
 }
 
--- File-scope locals only. Debug mode asserts on undefined globals.
 local last_roll_time = false
 local hours_this_sol = 0
+local ticker_id = false
+local loc_patched = false
 
 local function G(name)
 	return rawget(_G, name)
@@ -70,37 +71,51 @@ local function OptStr(name, default)
 end
 
 local function Log(...)
-	if OptBool("LogToConsole", DEFAULTS.LogToConsole) then
-		print(MOD_TAG, ...)
+	print(MOD_TAG, ...)
+end
+
+local function PatchPlainTextLoc()
+	if loc_patched then
+		return
 	end
+	local un = G("Untranslated")
+	local fn = G("AppendTTranslate")
+	if not un or type(fn) ~= "function" then
+		return
+	end
+	loc_patched = true
+	local old = fn
+	rawset(_G, "AppendTTranslate", function(text, ...)
+		local t = type(text)
+		if t == "string" or t == "number" then
+			text = un(tostring(text))
+		end
+		return old(text, ...)
+	end)
+	Log("patched AppendTTranslate for debug infobar asserts")
 end
 
-local function HasTechStatus(obj)
-	return obj and type(obj) == "table" and obj.tech_status and obj.SetTechResearched
-end
-
-local function GetResearch()
+local function GetColony()
 	local colony = G("UIColony")
+	if colony and colony.SetTechResearched then
+		return colony
+	end
 	local city = G("UICity")
-	local main = G("MainCity")
-	local list = {
-		colony,
-		colony and colony.research,
-		city,
-		city and city.colony,
-		city and city.colony and city.colony.research,
-		main,
-		main and main.colony,
-	}
-	for i = 1, #list do
-		if HasTechStatus(list[i]) then
-			return list[i]
+	if city then
+		if city.colony and city.colony.SetTechResearched then
+			return city.colony
+		end
+		if city.SetTechResearched then
+			return city
 		end
 	end
-	for i = 1, #list do
-		local obj = list[i]
-		if obj and obj.SetTechResearched then
-			return obj
+	local main = G("MainCity")
+	if main then
+		if main.colony and main.colony.SetTechResearched then
+			return main.colony
+		end
+		if main.SetTechResearched then
+			return main
 		end
 	end
 	return nil
@@ -116,37 +131,31 @@ local function GetColonistCount()
 		if labels and labels.Colonist then
 			return #labels.Colonist
 		end
-		if colony.GetLabels then
-			local ok, list = pcall(colony.GetLabels, colony, "Colonist")
-			if ok and type(list) == "table" then
-				return #list
-			end
-		end
-	end
-	local city = G("UICity")
-	if city and city.labels and city.labels.Colonist then
-		return #city.labels.Colonist
 	end
 	local n = 0
 	local cities = G("Cities")
-	if cities then
-		for _, c in ipairs(cities) do
-			local list = c.labels and c.labels.Colonist
+	if type(cities) == "table" then
+		for _, city in ipairs(cities) do
+			local list = city.labels and city.labels.Colonist
 			if list then
 				n = n + #list
 			end
 		end
 	end
+	local city = G("UICity")
+	if n == 0 and city and city.labels and city.labels.Colonist then
+		n = #city.labels.Colonist
+	end
 	return n
 end
 
-local function Rand(research, n)
+local function Rand(colony, n)
 	if n <= 1 then
 		return 1
 	end
 	local r
-	if research and research.Random then
-		local ok, v = pcall(research.Random, research, n)
+	if colony and colony.Random then
+		local ok, v = pcall(colony.Random, colony, n)
 		if ok and type(v) == "number" then
 			r = v
 		end
@@ -154,10 +163,6 @@ local function Rand(research, n)
 	local ir = G("InteractionRand")
 	if not r and ir then
 		r = ir(n, "PopTechLottery")
-	end
-	local ar = G("AsyncRand")
-	if not r and ar then
-		r = ar(n)
 	end
 	r = r or 0
 	if r < 1 then
@@ -169,7 +174,9 @@ local function Rand(research, n)
 	return r
 end
 
-local function IsBreakthrough(tech_id, status, def)
+local function IsBreakthrough(tech_id, status)
+	local td = G("TechDef")
+	local def = td and td[tech_id]
 	if def and (def.group == "Breakthroughs" or def.field == "Breakthroughs") then
 		return true
 	end
@@ -179,112 +186,93 @@ local function IsBreakthrough(tech_id, status, def)
 	return false
 end
 
-local function IsResearched(research, tech_id, status)
-	if research.IsTechResearched then
-		local ok, v = pcall(research.IsTechResearched, research, tech_id)
-		if ok then
-			return not not v
-		end
-	end
-	return status and not not status.researched
-end
-
-local function IsUnlocked(research, tech_id, status)
-	if research.IsTechResearchable then
-		local ok, v = pcall(research.IsTechResearchable, research, tech_id)
-		if ok and v then
-			return true
-		end
-	end
-	if research.IsTechDiscovered then
-		local ok, v = pcall(research.IsTechDiscovered, research, tech_id)
-		if ok then
-			return not not v
-		end
-	end
-	return status and not not status.discovered
-end
-
-local function EachTechId(research, fn)
+local function EachTechId(colony, fn)
 	local seen = {}
 	local function hit(tech_id)
-		if type(tech_id) == "string" and not seen[tech_id] then
+		if type(tech_id) == "string" and tech_id ~= "" and not seen[tech_id] then
 			seen[tech_id] = true
 			fn(tech_id)
 		end
 	end
-	if research.tech_status then
-		for tech_id in pairs(research.tech_status) do
-			hit(tech_id)
-		end
+	if colony.tech_status then
+		pcall(function()
+			for tech_id in pairs(colony.tech_status) do
+				hit(tech_id)
+			end
+		end)
 	end
-	if research.tech_field then
-		for _, field_list in pairs(research.tech_field) do
-			if type(field_list) == "table" then
-				for i = 1, #field_list do
-					hit(field_list[i])
+	if colony.tech_field then
+		pcall(function()
+			for _, field_list in pairs(colony.tech_field) do
+				if type(field_list) == "table" then
+					for i = 1, #field_list do
+						hit(field_list[i])
+					end
 				end
 			end
-		end
+		end)
 	end
-	local techdef = G("TechDef")
-	if techdef then
-		pcall(function()
-			for tech_id in pairs(techdef) do
-				hit(tech_id)
+	local ForEachPreset = G("ForEachPreset")
+	if ForEachPreset then
+		pcall(ForEachPreset, "TechPreset", function(preset)
+			if preset and preset.id then
+				hit(preset.id)
 			end
 		end)
 	end
 end
 
-local function CollectCandidates(research, include_bt, include_locked)
+local function CollectCandidates(colony, include_bt, include_locked)
 	local list = {}
-	local techdef = G("TechDef")
-	EachTechId(research, function(tech_id)
-		local status = research.tech_status and research.tech_status[tech_id]
-		local def = techdef and techdef[tech_id]
-		if IsResearched(research, tech_id, status) then
-			local repeatable = false
-			if research.IsTechRepeatable then
-				local ok, v = pcall(research.IsTechRepeatable, research, tech_id)
-				repeatable = ok and v
-			end
-			if not repeatable then
-				return
-			end
+	EachTechId(colony, function(tech_id)
+		local status = colony.tech_status and colony.tech_status[tech_id]
+		local researched = false
+		if colony.IsTechResearched then
+			local ok, v = pcall(colony.IsTechResearched, colony, tech_id)
+			researched = ok and v
+		elseif status then
+			researched = not not status.researched
 		end
-		if (not include_bt) and IsBreakthrough(tech_id, status, def) then
+		if researched then
 			return
 		end
-		if include_locked or IsUnlocked(research, tech_id, status) then
+		if (not include_bt) and IsBreakthrough(tech_id, status) then
+			return
+		end
+		local unlocked = false
+		if colony.IsTechDiscovered then
+			local ok, v = pcall(colony.IsTechDiscovered, colony, tech_id)
+			unlocked = ok and v
+		elseif colony.IsTechResearchable then
+			local ok, v = pcall(colony.IsTechResearchable, colony, tech_id)
+			unlocked = ok and v
+		elseif status then
+			unlocked = not not status.discovered
+		end
+		if include_locked or unlocked then
 			list[#list + 1] = tech_id
 		end
 	end)
 	return list
 end
 
-local function ResearchOne(research, tech_id, include_locked)
-	if include_locked and research.SetTechDiscovered then
-		pcall(research.SetTechDiscovered, research, tech_id)
+local function ResearchOne(colony, tech_id)
+	if colony.SetTechDiscovered then
+		pcall(colony.SetTechDiscovered, colony, tech_id)
 	end
-	local ok, result = pcall(research.SetTechResearched, research, tech_id)
-	if ok and result then
+	local ok, result = pcall(colony.SetTechResearched, colony, tech_id)
+	if not ok then
+		Log("SetTechResearched error", tech_id, tostring(result))
+		return false
+	end
+	if result then
 		return true
 	end
-	local status = research.tech_status and research.tech_status[tech_id]
-	if IsResearched(research, tech_id, status) then
-		return true
-	end
-	if ok and status then
-		status.discovered = status.discovered or 1
-		status.researched = status.researched or 1
-		local techdef = G("TechDef")
-		local def = techdef and techdef[tech_id]
-		if def and def.EffectsApply then
-			pcall(def.EffectsApply, def, research)
+	if colony.IsTechResearched then
+		local ok2, v = pcall(colony.IsTechResearched, colony, tech_id)
+		if ok2 and v then
+			return true
 		end
-		pcall(Msg, "TechResearched", tech_id, research, true)
-		return true
 	end
 	return false
 end
@@ -306,32 +294,38 @@ local function Toast(text)
 		return
 	end
 	local un = G("Untranslated")
-	if not un then
-		return
+	local add = G("AddCustomOnScreenNotification")
+	if un and add then
+		pcall(add, "PopTechLottery", un("Population Tech Lottery"), un(text), nil)
 	end
-	pcall(function()
-		local add = G("AddCustomOnScreenNotification")
-		if add then
-			add("PopTechLottery", un("Population Tech Lottery"), un(text), nil)
-		end
-	end)
 end
 
-function PopTechLottery_TryRoll(reason)
+local function TryRoll(reason)
+	PatchPlainTextLoc()
 	if not OptBool("Enabled", DEFAULTS.Enabled) then
+		Log(reason or "?", "disabled")
 		return
 	end
-	local research = GetResearch()
-	if not research then
-		Log("no research object, lottery cannot run")
+	local colony = GetColony()
+	if not colony then
+		Log(reason or "?", "NO colony/research object")
 		return
 	end
 	local colonists = GetColonistCount()
+	local chance = ChancePercent(colonists)
+	local include_bt = OptBool("IncludeBreakthroughs", DEFAULTS.IncludeBreakthroughs)
+	local include_locked = OptBool("UnlockLockedTechs", DEFAULTS.UnlockLockedTechs)
+	local cands = CollectCandidates(colony, include_bt, include_locked)
+	if #cands == 0 and not include_locked then
+		include_locked = true
+		cands = CollectCandidates(colony, include_bt, true)
+		Log(reason or "?", "unlocked pool empty, using locked techs")
+	end
+	Log(reason or "?", "pop", colonists, "chance", chance, "cands", #cands)
+
 	if colonists < 1 then
-		Log("no colonists")
 		return
 	end
-	local chance = ChancePercent(colonists)
 	local per_success = math.floor(OptNum("TechsPerSuccess", DEFAULTS.TechsPerSuccess) + 0.5)
 	if per_success < 1 then
 		per_success = 1
@@ -344,102 +338,154 @@ function PopTechLottery_TryRoll(reason)
 	local remainder = chance - guaranteed * 100
 	local successes = guaranteed
 	local threshold = math.floor(remainder * 100 + 0.5)
-	if threshold > 0 and Rand(research, 10000) <= threshold then
+	if threshold > 0 and Rand(colony, 10000) <= threshold then
 		successes = successes + 1
 	end
 	if successes < 1 then
-		Log(reason or "?", "pop", colonists, "chance", chance, "miss")
+		Log(reason or "?", "miss")
 		return
 	end
 	local want = successes * per_success
 	if want > max_techs then
 		want = max_techs
 	end
-
-	local include_bt = OptBool("IncludeBreakthroughs", DEFAULTS.IncludeBreakthroughs)
-	local include_locked = OptBool("UnlockLockedTechs", DEFAULTS.UnlockLockedTechs)
-	local candidates = CollectCandidates(research, include_bt, include_locked)
-	if #candidates == 0 and not include_locked then
-		Log("unlocked pool empty, trying locked techs this tick")
-		include_locked = true
-		candidates = CollectCandidates(research, include_bt, true)
-	end
-	if #candidates == 0 then
-		Log("no candidate techs remaining")
+	if #cands == 0 then
+		Log(reason or "?", "no candidate techs")
 		return
 	end
 
 	local done = 0
 	for _ = 1, want do
-		candidates = CollectCandidates(research, include_bt, include_locked)
-		if #candidates == 0 then
+		cands = CollectCandidates(colony, include_bt, include_locked)
+		if #cands == 0 then
 			break
 		end
-		local tech_id = candidates[Rand(research, #candidates)]
-		if ResearchOne(research, tech_id, include_locked) then
+		local tech_id = cands[Rand(colony, #cands)]
+		if ResearchOne(colony, tech_id) then
 			done = done + 1
 			Log("researched", tech_id)
 		end
 	end
 	if done > 0 then
-		print(MOD_TAG, "pop", colonists, "granted", done, "on", reason or "?")
-		Toast("Granted " .. tostring(done) .. " tech(s). Colonists: " .. tostring(colonists))
+		Log("granted", done, "on", reason or "?")
+		Toast("Granted " .. tostring(done) .. " tech(s). Pop " .. tostring(colonists))
 	else
-		Log("wanted", want, "but SetTechResearched granted 0")
+		Log("wanted", want, "granted 0")
 	end
 end
 
-local function DebouncedRoll(reason)
-	local t = G("GameTime") and G("GameTime")() or 0
+rawset(_G, "PopTechLottery_TryRoll", TryRoll)
+
+local function Debounced(reason)
+	local gt = G("GameTime")
+	local t = gt and gt() or 0
 	local c = G("const")
-	local min_gap = (c and c.MinuteDuration and (10 * c.MinuteDuration)) or 1
+	local min_gap = (c and c.MinuteDuration and (5 * c.MinuteDuration)) or 1
 	if last_roll_time and (t - last_roll_time) < min_gap then
 		return
 	end
 	last_roll_time = t
-	PopTechLottery_TryRoll(reason)
+	TryRoll(reason)
+end
+
+local function HourWait()
+	local c = G("const")
+	if c and c.HourDuration then
+		return c.HourDuration
+	end
+	return 60000
+end
+
+local function StartTicker()
+	if ticker_id then
+		return
+	end
+	local create = G("CreateGameTimeThread")
+	local SleepFn = G("Sleep")
+	if not create or not SleepFn then
+		Log("no CreateGameTimeThread, falling back to NewHour only")
+		return
+	end
+	ticker_id = true
+	create(function()
+		SleepFn(HourWait())
+		TryRoll("boot")
+		while true do
+			SleepFn(HourWait())
+			if OptStr("Interval", DEFAULTS.Interval) == "Hour" then
+				TryRoll("hour-thread")
+			else
+				hours_this_sol = hours_this_sol + 1
+				local c = G("const")
+				local need = (c and c.HoursPerDay) or 24
+				if hours_this_sol >= need then
+					hours_this_sol = 0
+					Debounced("sol-thread")
+				end
+			end
+		end
+	end)
+	Log("game-time ticker started")
 end
 
 function OnMsg.NewHour()
 	if OptStr("Interval", DEFAULTS.Interval) == "Hour" then
-		PopTechLottery_TryRoll("hour")
+		TryRoll("hour-msg")
 		return
 	end
 	hours_this_sol = hours_this_sol + 1
 	local c = G("const")
-	local hours_per_sol = (c and c.HoursPerDay) or 24
-	if hours_this_sol >= hours_per_sol then
+	local need = (c and c.HoursPerDay) or 24
+	if hours_this_sol >= need then
 		hours_this_sol = 0
-		DebouncedRoll("sol")
+		Debounced("sol-msg")
 	end
 end
 
 function OnMsg.NewDay()
-	if OptStr("Interval", DEFAULTS.Interval) == "Hour" then
-		return
+	if OptStr("Interval", DEFAULTS.Interval) ~= "Hour" then
+		hours_this_sol = 0
+		Debounced("sol-day")
 	end
-	hours_this_sol = 0
-	DebouncedRoll("sol")
 end
 
 function OnMsg.NewSol()
-	if OptStr("Interval", DEFAULTS.Interval) == "Hour" then
-		return
+	if OptStr("Interval", DEFAULTS.Interval) ~= "Hour" then
+		hours_this_sol = 0
+		Debounced("sol-sol")
 	end
-	hours_this_sol = 0
-	DebouncedRoll("sol")
 end
 
 function OnMsg.LoadGame()
 	hours_this_sol = 0
 	last_roll_time = false
+	ticker_id = false
+	PatchPlainTextLoc()
+	StartTicker()
 end
 
-function PopTechLottery_Debug()
-	local research = GetResearch()
+function OnMsg.NewMapLoaded()
+	PatchPlainTextLoc()
+	StartTicker()
+end
+
+function OnMsg.InGameInterfaceCreated()
+	PatchPlainTextLoc()
+	StartTicker()
+end
+
+function OnMsg.ClassesPostprocess()
+	PatchPlainTextLoc()
+end
+
+rawset(_G, "PopTechLottery_Debug", function()
+	PatchPlainTextLoc()
+	local colony = GetColony()
 	local colonists = GetColonistCount()
-	local cands = research and CollectCandidates(research, OptBool("IncludeBreakthroughs", false), OptBool("UnlockLockedTechs", false)) or {}
-	print(MOD_TAG, "debug pop", colonists, "chance", ChancePercent(colonists), "research", research and "yes" or "NO", "candidates", #cands)
-end
+	local cands = colony and CollectCandidates(colony, OptBool("IncludeBreakthroughs", false), OptBool("UnlockLockedTechs", false)) or {}
+	Log("debug pop", colonists, "chance", ChancePercent(colonists), "colony", colony and "yes" or "NO", "cands", #cands)
+	TryRoll("manual")
+end)
 
-print(MOD_TAG, "loaded")
+PatchPlainTextLoc()
+Log("loaded")
