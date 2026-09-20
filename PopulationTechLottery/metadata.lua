@@ -5,32 +5,24 @@ return PlaceObj("ModDef", {
 This is an optional sandbox / high-tech playstyle. A normal colony does not need it.
 
 HOW IT WORKS
-• Chance = (colonists ÷ Colonists-per-1%) × Chance-per-group × Techs-per-success
-• Default: 20 colonists → 1% per Sol, 2000 → 100% (Techs-per-success techs per Sol)
-• Chance over 100% becomes extra successes (capped by Max techs per interval)
-• Default pool: discovered / unlocked techs only, Breakthroughs excluded
-• Turn on "Also roll locked techs" if you want the whole tree to open over time
-• Switch interval to Hour if you want a much faster all-tech run
+• Chance = (colonists ÷ Colonists-per-1%) × Chance-per-group
+• Default: 20 colonists → 1% per Sol, 2000 → 100%
+• Techs-per-success controls how many techs each success grants
+• Turn on Also roll locked techs for the all-tech playstyle
 
-INSTALL
-Drop this folder into:
-  %AppData%\Surviving Mars Relaunched\Mods\PopulationTechLottery
-Enable it in the in-game Mod Manager, then restart the game.
-Options: Game Options → Mod Options → Population Tech Lottery
-
-Safe to add to an existing save. Removing it simply stops the rolls.
-Does not require other mods. Written for Surviving Mars: Relaunched 1.1.x.
+After load, the first roll happens in about 1 in-game Hour so you can confirm it works.
+Look for [PopTechLottery] lines in the debug log.
 
 CREDITS
 Written by Grok (xAI). MIT License.]],
 	"short_description", "Every 20 colonists add +1% chance per Sol to instantly research a random already-unlocked tech.",
 	"image", "preview.jpg",
-	"last_changes", "1.0.2: debug-safe globals (lottery actually runs in developer mode); options for colonists-per-% and techs-per-success; infobar 'v' assert is vanilla, not this mod.",
+	"last_changes", "1.0.3: silence vanilla debug infobar 'v' assert; independent game-time ticker; first roll ~1 Hour after load so you can see it work.",
 	"id", "PopTechLottery",
 	"author", "Grok (xAI)",
 	"version_major", 1,
 	"version_minor", 0,
-	"version", 3,
+	"version", 4,
 	"lua_revision", 350453,
 	"saved_with_revision", 403908,
 	"optional_mod", true,
