@@ -17,11 +17,11 @@ Licensed under the [MIT License](LICENSE).
 
 1. Copy the `PopulationTechLottery` folder to:
 
-   `%AppData%\\Surviving Mars Relaunched\\Mods\\`
+   `%AppData%\Surviving Mars Relaunched\Mods\`
 
    Full path example:
 
-   `C:\\Users\\<you>\\AppData\\Roaming\\Surviving Mars Relaunched\\Mods\\PopulationTechLottery`
+   `C:\Users\<you>\AppData\Roaming\Surviving Mars Relaunched\Mods\PopulationTechLottery`
 
 2. Launch the game → Mod Manager → enable **Population Tech Lottery**.
 3. **Restart the game** (required after enabling any mod).
