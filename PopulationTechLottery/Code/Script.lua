@@ -3,8 +3,7 @@
 -- Written by Grok (xAI). MIT License.
 --
 -- 1.1 research is GrantTech / ResearchTech / UnlockTech / GetTechState
--- (see ModTools/Src/Lua/Tech.lua and CommonLua/Libs/Research/Research.lua).
--- SetTechResearched now forwards to UIPlayer:UIResearch(id, "force").
+-- (ModTools/Src/Lua/Tech.lua and CommonLua/Libs/Research/Research.lua).
 
 local MOD_TAG = "[PopTechLottery]"
 
@@ -21,8 +20,6 @@ local DEFAULTS = {
 }
 
 local last_roll_time = false
-local hours_this_sol = 0
-local ticker_on = false
 local loc_patched = false
 
 local function G(name)
@@ -77,7 +74,6 @@ local function Log(...)
 	print(MOD_TAG, ...)
 end
 
--- Vanilla infobar in developer mode feeds '<color 248 0 0>v</color>' into T().
 local function PatchLoc()
 	if loc_patched then
 		return
@@ -150,15 +146,7 @@ local function IsBreakthroughTech(tech)
 	if not tech then
 		return false
 	end
-	if tech.group == "Breakthroughs" or tech.field == "Breakthroughs" then
-		return true
-	end
-	local groups = G("TechGroups")
-	local g = tech.group and groups and groups[tech.group]
-	if g and g.group == "Breakthroughs" then
-		return true
-	end
-	return false
+	return tech.group == "Breakthroughs" or tech.field == "Breakthroughs"
 end
 
 local function CollectCandidates(include_bt, include_locked)
@@ -193,15 +181,6 @@ local function Grant(tech_id)
 		local GT = G("GrantTech")
 		if GT then
 			pcall(GT, tech_id)
-		else
-			local UT = G("UnlockTech")
-			if UT then
-				pcall(UT, tech_id)
-			end
-			local colony = G("UIColony")
-			if colony and colony.SetTechResearched then
-				pcall(colony.SetTechResearched, colony, tech_id)
-			end
 		end
 	end
 	return TechState(tech_id) == "researched"
@@ -242,32 +221,56 @@ local function Rand(n)
 	return r
 end
 
+local function TechDisplayName(tech_id)
+	local Techs = G("Techs")
+	local tech = Techs and Techs[tech_id]
+	if not tech then
+		return tech_id
+	end
+	local t = tech.DisplayName or tech.display_name
+	local eng = G("TDevModeGetEnglishText")
+	if eng and t then
+		local ok, s = pcall(eng, t, false, true)
+		if ok and type(s) == "string" and s ~= "" and s ~= "DisplayName" then
+			return s
+		end
+	end
+	local tr = G("_InternalTranslate")
+	if tr and t then
+		local ok, s = pcall(tr, t)
+		if ok and type(s) == "string" and s ~= "" then
+			return s
+		end
+	end
+	return tech_id
+end
+
 local function Toast(tech_ids)
 	if not OptBool("ShowNotifications", DEFAULTS.ShowNotifications) then
 		return
 	end
-	local Techs = G("Techs")
-	local addObj = G("AddObjectToNotification")
-	if addObj and Techs then
-		for i = 1, #(tech_ids or {}) do
-			local tech = Techs[tech_ids[i]]
-			if tech then
-				if not pcall(addObj, tech, nil, "TechPoint_WishlistResearched") then
-					pcall(addObj, tech, nil, "TechDiscovered")
-				end
-			end
-		end
+	tech_ids = tech_ids or {}
+	if #tech_ids == 0 then
 		return
 	end
-	local add = G("AddNotification")
-	local un = G("Untranslated")
-	if add and un then
-		pcall(add, "StoryBit", {
-			Title = un("Population Tech Lottery"),
-			Text = un("Granted " .. tostring(#(tech_ids or {})) .. " tech(s)"),
-			Dismissable = true,
-		})
+	local names = {}
+	for i = 1, #tech_ids do
+		names[#names + 1] = TechDisplayName(tech_ids[i])
 	end
+	local un = G("Untranslated")
+	local add = G("AddNotification")
+	if not un or not add then
+		return
+	end
+	pcall(add, "StoryBit", {
+		Title = un("Population Tech Lottery"),
+		Text = un(table.concat(names, "\n")),
+		Dismissable = true,
+		CloseOnRead = true,
+		Expiration = 60000,
+		Image = "UI/IconsRemaster/Notifications/research.png",
+		PressAction = "dismiss",
+	})
 end
 
 local function TryRoll(reason)
@@ -356,83 +359,29 @@ local function Debounced(reason)
 	TryRoll(reason)
 end
 
-local function HourWait()
-	local c = G("const")
-	if c and c.HourDuration then
-		return c.HourDuration
-	end
-	return 60000
-end
-
-local function StartTicker()
-	if ticker_on then
-		return
-	end
-	local create = G("CreateGameTimeThread")
-	local SleepFn = G("Sleep")
-	if not create or not SleepFn then
-		Log("no game-time thread")
-		return
-	end
-	ticker_on = true
-	create(function()
-		SleepFn(HourWait())
-		Debounced("boot")
-		while true do
-			SleepFn(HourWait())
-			if OptStr("Interval", DEFAULTS.Interval) == "Hour" then
-				Debounced("hour-thread")
-			else
-				hours_this_sol = hours_this_sol + 1
-				local c = G("const")
-				local need = (c and c.HoursPerDay) or 24
-				if hours_this_sol >= need then
-					hours_this_sol = 0
-					Debounced("sol-thread")
-				end
-			end
-		end
-	end)
-	Log("ticker started")
-end
-
 function OnMsg.NewHour()
 	if OptStr("Interval", DEFAULTS.Interval) == "Hour" then
-		Debounced("hour-msg")
-		return
-	end
-	hours_this_sol = hours_this_sol + 1
-	local c = G("const")
-	local need = (c and c.HoursPerDay) or 24
-	if hours_this_sol >= need then
-		hours_this_sol = 0
-		Debounced("sol-msg")
+		Debounced("hour")
 	end
 end
 
 function OnMsg.NewDay()
 	if OptStr("Interval", DEFAULTS.Interval) ~= "Hour" then
-		hours_this_sol = 0
-		Debounced("sol-day")
+		Debounced("sol")
 	end
 end
 
 function OnMsg.LoadGame()
-	hours_this_sol = 0
 	last_roll_time = false
-	ticker_on = false
 	PatchLoc()
-	StartTicker()
 end
 
 function OnMsg.NewMapLoaded()
 	PatchLoc()
-	StartTicker()
 end
 
 function OnMsg.InGameInterfaceCreated()
 	PatchLoc()
-	StartTicker()
 end
 
 function OnMsg.ClassesPostprocess()
@@ -442,7 +391,7 @@ end
 rawset(_G, "PopTechLottery_Debug", function()
 	PatchLoc()
 	local cands = CollectCandidates(OptBool("IncludeBreakthroughs", false), OptBool("UnlockLockedTechs", false))
-	Log("debug pop", GetColonistCount(), "chance", ChancePercent(GetColonistCount()), "cands", #cands, "queue", G("UIPlayer") and "yes" or "NO")
+	Log("debug pop", GetColonistCount(), "chance", ChancePercent(GetColonistCount()), "cands", #cands)
 	TryRoll("manual")
 end)
 
