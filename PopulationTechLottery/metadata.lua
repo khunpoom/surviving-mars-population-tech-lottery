@@ -5,12 +5,12 @@ return PlaceObj("ModDef", {
 This is an optional sandbox / high-tech playstyle. A normal colony does not need it.
 
 HOW IT WORKS
-• Chance = (colonists ÷ Colonists-per-1%) × Chance-per-group
-• Default: 20 colonists → 1% per Sol, 200 → 10%, 2 000 → 100% (one tech per Sol)
-• Chance over 100% becomes extra rolls (capped, default 5 techs per tick)
+• Chance = (colonists ÷ Colonists-per-1%) × Chance-per-group × Techs-per-success
+• Default: 20 colonists → 1% per Sol, 2000 → 100% (Techs-per-success techs per Sol)
+• Chance over 100% becomes extra successes (capped by Max techs per interval)
 • Default pool: discovered / unlocked techs only, Breakthroughs excluded
 • Turn on "Also roll locked techs" if you want the whole tree to open over time
-• Switch interval to Hour if you want a much faster all-tech run (~25×)
+• Switch interval to Hour if you want a much faster all-tech run
 
 INSTALL
 Drop this folder into:
@@ -25,12 +25,12 @@ CREDITS
 Written by Grok (xAI). MIT License.]],
 	"short_description", "Every 20 colonists add +1% chance per Sol to instantly research a random already-unlocked tech.",
 	"image", "preview.jpg",
-	"last_changes", "1.0.1: fix debug-mode crash on undefined global (lottery never rolled); avoid T() text in console; roll on NewHour as well as NewDay.",
+	"last_changes", "1.0.2: debug-safe globals (lottery actually runs in developer mode); options for colonists-per-% and techs-per-success; infobar 'v' assert is vanilla, not this mod.",
 	"id", "PopTechLottery",
 	"author", "Grok (xAI)",
 	"version_major", 1,
 	"version_minor", 0,
-	"version", 2,
+	"version", 3,
 	"lua_revision", 350453,
 	"saved_with_revision", 403908,
 	"optional_mod", true,
@@ -42,11 +42,12 @@ Written by Grok (xAI). MIT License.]],
 		Enabled = true,
 		ColonistsPerPercent = 20,
 		ChancePerGroup = 1,
+		TechsPerSuccess = 1,
 		Interval = "Sol",
 		UnlockLockedTechs = false,
 		IncludeBreakthroughs = false,
 		MaxRollsPerTick = 5,
 		ShowNotifications = true,
-		LogToConsole = false,
+		LogToConsole = true,
 	},
 })
