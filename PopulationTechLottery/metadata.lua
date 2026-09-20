@@ -1,23 +1,36 @@
 return PlaceObj("ModDef", {
 	"title", "Population Tech Lottery",
-	"description", [[Every 20 living colonists add +1% chance (once per Sol by default) to instantly research a random technology.
+	"description", [[Every 20 living colonists add +1% chance (once per Sol by default) to instantly research a random technology the colony has already unlocked.
 
-Written against Surviving Mars: Relaunched 1.1 ModTools APIs:
-GrantTech / ResearchTech / UnlockTech / GetTechState.
+This is an optional sandbox / high-tech playstyle. A normal colony does not need it.
 
-After load, the first roll happens in about 1 in-game Hour.
-Look for [PopTechLottery] lines in the debug log.
+HOW IT WORKS
+• Chance = (colonists ÷ Colonists-per-1%) × Chance-per-group
+• Default: 20 colonists → 1% per Sol, 200 → 10%, 2 000 → 100% (one tech per Sol)
+• Chance over 100% becomes extra rolls (capped, default 5 techs per tick)
+• Default pool: discovered / unlocked techs only, Breakthroughs excluded
+• Turn on "Also roll locked techs" if you want the whole tree to open over time
+• Switch interval to Hour if you want a much faster all-tech run (~25×)
+
+INSTALL
+Drop this folder into:
+  %AppData%\Surviving Mars Relaunched\Mods\PopulationTechLottery
+Enable it in the in-game Mod Manager, then restart the game.
+Options: Game Options → Mod Options → Population Tech Lottery
+
+Safe to add to an existing save. Removing it simply stops the rolls.
+Does not require other mods. Written for Surviving Mars: Relaunched 1.1.x.
 
 CREDITS
 Written by Grok (xAI). MIT License.]],
-	"short_description", "Every 20 colonists add +1% chance per Sol to instantly research a random tech.",
+	"short_description", "Every 20 colonists add +1% chance per Sol to instantly research a random already-unlocked tech.",
 	"image", "preview.jpg",
-	"last_changes", "1.0.4: use Relaunched 1.1 ResearchTech/UnlockTech/GetTechState (ModTools). First roll ~1 Hour after load.",
+	"last_changes", "1.0.5: vanilla research-complete toast; preview image; stop double Hour rolls.",
 	"id", "PopTechLottery",
 	"author", "Grok (xAI)",
 	"version_major", 1,
 	"version_minor", 0,
-	"version", 5,
+	"version", 6,
 	"lua_revision", 350453,
 	"saved_with_revision", 403908,
 	"optional_mod", true,
