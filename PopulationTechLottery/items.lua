@@ -1,0 +1,67 @@
+return {
+	PlaceObj("ModItemOptionToggle", {
+		"name", "Enabled",
+		"DisplayName", Untranslated("Enable lottery"),
+		"Help", Untranslated("Master switch. Off = the mod does nothing."),
+		"DefaultValue", true,
+	}),
+	PlaceObj("ModItemOptionNumber", {
+		"name", "ColonistsPerPercent",
+		"DisplayName", Untranslated("Colonists per +1% chance"),
+		"Help", Untranslated("Default 20: every 20 living colonists add 1% chance (at Chance Per Group = 1)."),
+		"DefaultValue", 20,
+		"MinValue", 1,
+		"MaxValue", 200,
+	}),
+	PlaceObj("ModItemOptionNumber", {
+		"name", "ChancePerGroup",
+		"DisplayName", Untranslated("Chance % per group"),
+		"Help", Untranslated("How many percent each colonist-group adds. Default 1."),
+		"DefaultValue", 1,
+		"MinValue", 1,
+		"MaxValue", 20,
+	}),
+	PlaceObj("ModItemOptionChoice", {
+		"name", "Interval",
+		"DisplayName", Untranslated("Roll interval"),
+		"Help", Untranslated("Sol = once per Martian day (recommended). Hour = ~25× faster, for all-tech sandbox runs."),
+		"DefaultValue", "Sol",
+		"ChoiceList", { "Sol", "Hour" },
+	}),
+	PlaceObj("ModItemOptionToggle", {
+		"name", "UnlockLockedTechs",
+		"DisplayName", Untranslated("Also roll locked techs"),
+		"Help", Untranslated("Off (default): only techs the colony has already unlocked/discovered. On: may discover AND research locked techs — the all-tech playstyle."),
+		"DefaultValue", false,
+	}),
+	PlaceObj("ModItemOptionToggle", {
+		"name", "IncludeBreakthroughs",
+		"DisplayName", Untranslated("Include Breakthroughs"),
+		"Help", Untranslated("Off by default so Breakthroughs stay rare. Turn on for sandbox / all-tech runs."),
+		"DefaultValue", false,
+	}),
+	PlaceObj("ModItemOptionNumber", {
+		"name", "MaxRollsPerTick",
+		"DisplayName", Untranslated("Max techs per roll"),
+		"Help", Untranslated("When chance exceeds 100% the extra is extra rolls. Cap so a megacolony does not dump the whole tree in one Sol."),
+		"DefaultValue", 5,
+		"MinValue", 1,
+		"MaxValue", 20,
+	}),
+	PlaceObj("ModItemOptionToggle", {
+		"name", "ShowNotifications",
+		"DisplayName", Untranslated("Show research notifications"),
+		"Help", Untranslated("Use the vanilla Research Complete toast when a tech is granted."),
+		"DefaultValue", true,
+	}),
+	PlaceObj("ModItemOptionToggle", {
+		"name", "LogToConsole",
+		"DisplayName", Untranslated("Log rolls to console"),
+		"Help", Untranslated("Print misses and grants. Open debug/console to see [PopTechLottery] lines."),
+		"DefaultValue", false,
+	}),
+	PlaceObj("ModItemCode", {
+		"name", "Script",
+		"CodeFileName", "Code/Script.lua",
+	}),
+}
